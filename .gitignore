@@ -1,0 +1,4 @@
+*.o
+benchmark-naive
+benchmark-blocked
+benchmark-blas
