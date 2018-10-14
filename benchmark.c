@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE
 #include <stdlib.h> // For: exit, drand48, malloc, free, NULL, EXIT_FAILURE
 #include <stdio.h>  // For: perror
 #include <string.h> // For: memset
