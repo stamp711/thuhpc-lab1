@@ -9,8 +9,18 @@ LDFLAGS = -Wall
 # mkl is needed for blas implementation
 LDLIBS = -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm
 
-targets = benchmark-naive benchmark-blocked benchmark-blas
-objects = benchmark.o dgemm-naive.o dgemm-blocked.o dgemm-blas.o  
+BUILD_DIR = .build
+OBJDIR = $(BUILD_DIR)/obj
+BINDIR = $(BUILD_DIR)/bin
+MKDIR_P = mkdir -p
+
+SERVER = thuhpc
+SERVER_DIR = ~/workspace/lab1/dgemm
+REMOTE = $(SERVER):$(SERVER_DIR)
+
+targets = $(BINDIR)/benchmark-naive \
+          $(BINDIR)/benchmark-blocked \
+		  $(BINDIR)/benchmark-blas
 
 .PHONY : default
 default : all
@@ -18,16 +28,34 @@ default : all
 .PHONY : all
 all : clean $(targets)
 
-benchmark-naive : benchmark.o dgemm-naive.o 
-	$(CC) -o $@ $^ $(LDLIBS)
-benchmark-blocked : benchmark.o dgemm-blocked.o
-	$(CC) -o $@ $^ $(LDLIBS)
-benchmark-blas : benchmark.o dgemm-blas.o
-	$(CC) -o $@ $^ $(LDLIBS)
+$(BINDIR)/benchmark-naive : $(OBJDIR)/benchmark.o $(OBJDIR)/dgemm-naive.o
+	@$(MKDIR_P) $(dir $@)
+	@$(CC) -o $@ $^ $(LDLIBS)
 
-%.o : %.c
-	$(CC) -c $(CFLAGS) $<
+$(BINDIR)/benchmark-blocked : $(OBJDIR)/benchmark.o $(OBJDIR)/dgemm-blocked.o
+	@$(MKDIR_P) $(dir $@)
+	@$(CC) -o $@ $^ $(LDLIBS)
+
+$(BINDIR)/benchmark-blas : $(OBJDIR)/benchmark.o $(OBJDIR)/dgemm-blas.o
+	@$(MKDIR_P) $(dir $@)
+	@$(CC) -o $@ $^ $(LDLIBS)
+
+$(OBJDIR)/%.o : %.c
+	@$(MKDIR_P) $(dir $@)
+	@$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY : clean
 clean:
-	rm -f $(targets) $(objects)
+	@rm -rf $(BUILD_DIR)
+	@rm -rf job/output*
+
+.PHONY : run
+run: $(targets)
+	sbatch --wait job/submit
+
+.PHONY : hpc
+hpc:
+	@rsync -aC . $(REMOTE)
+	@echo "cd $(SERVER_DIR) && make && make run" | ssh $(SERVER)
+	@mv job/output job/output.prev 2>/dev/null; true
+	@rsync $(REMOTE)/job/output job/output
