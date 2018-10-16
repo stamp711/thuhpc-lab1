@@ -4,10 +4,4 @@
 #SBATCH -J job-benchmark
 #SBATCH -o job/output
 
-export MKL_NUM_THREADS=1
-
-srun -N 1 -n 1 ./.build/bin/benchmark-blas
-echo
-srun -N 1 -n 1 ./.build/bin/benchmark-blocked
-echo
-srun -N 1 -n 1 ./.build/bin/benchmark-naive
+srun -N 1 -n 1 ./.build/bin/benchmark-optimize

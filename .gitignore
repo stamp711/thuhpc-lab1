@@ -1,2 +1,4 @@
 .build/
 job/output*
+*.annot*
+*.optrpt

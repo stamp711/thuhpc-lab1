@@ -3,7 +3,7 @@
 # Your code must compile (with icc) with the given CFLAGS. You may experiment with the OPT variable to invoke additional compiler options.
 
 CC = icc 
-OPT =
+OPT = -qopt-report:5 -qopt-report-annotate=html -fast
 CFLAGS = -Wall -DGETTIMEOFDAY -std=c99 $(OPT)
 LDFLAGS = -Wall
 # mkl is needed for blas implementation
@@ -18,15 +18,16 @@ SERVER = thuhpc
 SERVER_DIR = ~/workspace/lab1/dgemm
 REMOTE = $(SERVER):$(SERVER_DIR)
 
-targets = $(BINDIR)/benchmark-naive \
-          $(BINDIR)/benchmark-blocked \
-		  $(BINDIR)/benchmark-blas
+reference = $(BINDIR)/benchmark-naive \
+            $(BINDIR)/benchmark-blocked \
+            $(BINDIR)/benchmark-blas
+optimized = $(BINDIR)/benchmark-optimize
 
 .PHONY : default
 default : all
 
 .PHONY : all
-all : clean $(targets)
+all : clean $(reference) $(optimized)
 
 $(BINDIR)/benchmark-naive : $(OBJDIR)/benchmark.o $(OBJDIR)/dgemm-naive.o
 	@$(MKDIR_P) $(dir $@)
@@ -40,22 +41,36 @@ $(BINDIR)/benchmark-blas : $(OBJDIR)/benchmark.o $(OBJDIR)/dgemm-blas.o
 	@$(MKDIR_P) $(dir $@)
 	@$(CC) -o $@ $^ $(LDLIBS)
 
+$(BINDIR)/benchmark-optimize : $(OBJDIR)/benchmark.o $(OBJDIR)/dgemm-optimize.o
+	@$(MKDIR_P) $(dir $@)
+	$(CC) -o $@ $^ $(LDLIBS)
+
 $(OBJDIR)/%.o : %.c
 	@$(MKDIR_P) $(dir $@)
-	@$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 .PHONY : clean
 clean:
 	@rm -rf $(BUILD_DIR)
 	@rm -rf job/output*
+	@rm -rf *.annot*
+
+.PHONY : run-ref
+run-ref: $(reference)
+	sbatch --wait job/submit-ref
 
 .PHONY : run
-run: $(targets)
+run: $(optimized)
 	sbatch --wait job/submit
+
+.PHONY : hpc-ref
+hpc-ref:
+	@rsync -aC . $(REMOTE)
+	@echo "cd $(SERVER_DIR) && make && make run-ref" | ssh $(SERVER)
+	@rsync -a --exclude='.git/' $(REMOTE) ..
 
 .PHONY : hpc
 hpc:
 	@rsync -aC . $(REMOTE)
 	@echo "cd $(SERVER_DIR) && make && make run" | ssh $(SERVER)
-	@mv job/output job/output.prev 2>/dev/null; true
-	@rsync $(REMOTE)/job/output job/output
+	@rsync -a --exclude='.git/' $(REMOTE) ..
