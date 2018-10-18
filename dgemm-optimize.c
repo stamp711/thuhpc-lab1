@@ -2,6 +2,14 @@
 
 const char *dgemm_desc = "Apricity's optimized dgemm.";
 
+#define M1 128
+#define N1 128
+#define K1 256
+
+#define M2 128
+#define N2 128
+#define K2 32
+
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
 #define A(i, k) (A[i + k * lda])
@@ -16,8 +24,8 @@ const char *dgemm_desc = "Apricity's optimized dgemm.";
 
 static inline void kernel_avx2_8x4x1(int lda, int ldb, int ldc, int kc, const double *restrict A, const double *restrict B, double *restrict C)
 {
-  // __assume_aligned(A, 32);
-  // __assume_aligned(B, 32);
+  __assume_aligned(A, 32);
+  // __assume_aligned(BT, 32);
   // __assume_aligned(C, 32);
 
   // use 14 (of 16) ymm registers
@@ -85,31 +93,50 @@ static inline void kernel_naive(int lda, int ldb, int ldc, int M, int N, int K, 
   }
 }
 
-// Level 2 blocking, i-j, K unchanged
-// M2 = 8
-// N2 = 4
-// K2 = K
+static inline void pack(double *restrict dest, int ld_dest, const double *restrict src, int ld_src, int X, int Y)
+{
+  for (int x = 0; x < X; x++)
+    for (int y = 0; y < Y; y++)
+      dest[x + y * ld_dest] = src[x + y * ld_src];
+}
+
+static inline void packT(double *restrict dest, int ld_dest, const double *restrict src, int ld_src, int X, int Y)
+{
+  for (int x = 0; x < X; x++)
+    for (int y = 0; y < Y; y++)
+      dest[x * ld_dest + y] = src[x + y * ld_src];
+}
+
+// Register blocking, i-j, K unchanged
+#define Mc 8
+#define Nc 4
+#define Kc K
+double Ai[Mc * K2] __attribute((aligned(32)));
+#define Ai(k) (Ai[(k)*Mc])
 static inline void do_block_8x4(int lda, int ldb, int ldc, int M, int N, int K, const double *restrict A, const double *restrict B, double *restrict C)
 {
   const double *restrict block_A;
   const double *restrict block_B;
   double *restrict block_C;
-  // kernel_naive(lda, ldb, ldc, M, N, K, A, B, C);
+
   int i;
-  for (i = 0; i <= M - 8; i += 8)
+  for (i = 0; i <= M - Mc; i += Mc)
   {
-    block_A = &A(i, 0);
+    int block_M = Mc;
+    // block_A = &A(i, 0);
+    pack(Ai, Mc, &A(i, 0), lda, block_M, K);
     int j;
-    for (j = 0; j <= N - 4; j += 4)
+    for (j = 0; j <= N - Nc; j += 4)
     {
+      block_A = &Ai(0);
       block_B = &B(0, j);
       block_C = &C(i, j);
-      kernel_avx2_8x4x1(lda, ldb, ldc, K, block_A, block_B, block_C);
+      kernel_avx2_8x4x1(Mc, ldb, ldc, K, block_A, block_B, block_C);
     }
     // end for(j), (N-j) columns remain in C
     // block_M = 8, block_N = (N-j), block_K = K
     if (j != N)
-      kernel_naive(lda, ldb, ldc, 8, N - j, K, &A(i, 0), &B(0, j), &C(i, j));
+      kernel_naive(Mc, ldb, ldc, 8, N - j, K, &Ai(0), &B(0, j), &C(i, j));
   }
   // end for(i), (M-i) rows remain in C
   // block_M = (M-i), block_N = N, block_K = K
@@ -117,11 +144,35 @@ static inline void do_block_8x4(int lda, int ldb, int ldc, int M, int N, int K, 
     kernel_naive(lda, ldb, ldc, M - i, N, K, &A(i, 0), B, &C(i, 0));
 }
 
+// Level 2 blocking, k-i-j
+// double Bk[K1 * N1] __attribute((aligned(32)));
+// #define Bk(j) (Bk[(j)*K2])
+static inline void do_block_L2(int lda, int ldb, int ldc, int M, int N, int K, const double *restrict A, const double *restrict B, double *restrict C)
+{
+  const double *block_A, *block_B;
+  double *block_C;
+
+  for (int k = 0; k < K; k += K2)
+  {
+    int block_K = min(K2, K - k);
+    // pack(Bk, K2, &B(k, 0), ldb, block_K, N);
+    for (int i = 0; i < M; i += M2)
+    {
+      int block_M = min(M2, M - i);
+      for (int j = 0; j < N; j += N2)
+      {
+        int block_N = min(N2, N - j);
+        block_A = &A(i, k);
+        block_B = &B(k, j);
+        block_C = &C(i, j);
+        do_block_8x4(lda, ldb, ldc, block_M, block_N, block_K, block_A, block_B, block_C);
+      }
+    }
+  }
+}
+
 // Level 1 blocking, k-i-j
-#define M1 128
-#define N1 128
-#define K1 128
-static inline void do_block_level1(int lda, int ldb, int ldc, int M, int N, int K, const double *restrict A, const double *restrict B, double *restrict C)
+static inline void do_block_L1(int lda, int ldb, int ldc, int M, int N, int K, const double *restrict A, const double *restrict B, double *restrict C)
 {
   const double *block_A, *block_B;
   double *block_C;
@@ -137,7 +188,7 @@ static inline void do_block_level1(int lda, int ldb, int ldc, int M, int N, int 
         block_A = &A(i, k);
         block_B = &B(k, j);
         block_C = &C(i, j);
-        do_block_8x4(lda, ldb, ldc, block_M, block_N, block_K, block_A, block_B, block_C);
+        do_block_L2(lda, ldb, ldc, block_M, block_N, block_K, block_A, block_B, block_C);
       }
     }
   }
@@ -145,5 +196,5 @@ static inline void do_block_level1(int lda, int ldb, int ldc, int M, int N, int 
 
 void square_dgemm(int lda, const double *restrict A, const double *restrict B, double *restrict C)
 {
-  do_block_level1(lda, lda, lda, lda, lda, lda, A, B, C);
+  do_block_L1(lda, lda, lda, lda, lda, lda, A, B, C);
 }
