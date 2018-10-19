@@ -3,7 +3,8 @@
 # Your code must compile (with icc) with the given CFLAGS. You may experiment with the OPT variable to invoke additional compiler options.
 
 CC = icc 
-OPT = -qopt-report:5 -qopt-report-annotate=html -fast -march=core-avx2
+OPT = -Ofast -march=core-avx2
+ANNOT = -qopt-report:5 -qopt-report-annotate=html
 CFLAGS = -Wall -DGETTIMEOFDAY -std=c99 $(OPT)
 LDFLAGS = -Wall
 # mkl is needed for blas implementation
