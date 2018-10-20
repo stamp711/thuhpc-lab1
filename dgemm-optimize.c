@@ -76,13 +76,13 @@ static inline void kernel_driver(int lda, int ldb, int ldc, int M, int N, int K,
   // Deal with remainder m x N, m < 16
   if (m >= 12)
   {
-    pack(Ai, Mc, &A(i, 0), lda, 12, K);
+    pack(Ai, 12, &A(i, 0), lda, 12, K);
     int j;
     for (j = 0; j <= N - 4; j += 4)
     {
       block_B = &B(0, j);
       block_C = &C(i, j);
-      kernel_mm256_12x4xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+      kernel_mm256_12x4xk(12, ldb, ldc, K, Ai, block_B, block_C);
     }
     n = N - j;
     if (n != 0)
@@ -90,11 +90,11 @@ static inline void kernel_driver(int lda, int ldb, int ldc, int M, int N, int K,
       block_B = &B(0, j);
       block_C = &C(i, j);
       if (n == 3)
-        kernel_mm256_12x3xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+        kernel_mm256_12x3xk(12, ldb, ldc, K, Ai, block_B, block_C);
       else if (n == 2)
-        kernel_mm256_12x2xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+        kernel_mm256_12x2xk(12, ldb, ldc, K, Ai, block_B, block_C);
       else
-        kernel_mm256_12x1xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+        kernel_mm256_12x1xk(12, ldb, ldc, K, Ai, block_B, block_C);
     }
     m -= 12;
     i += 12;
