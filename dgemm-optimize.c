@@ -1,8 +1,9 @@
-#include <immintrin.h>
 #include "helper.h"
 #include "kernel/naive.h"
 #include "kernel/mm256_8x4xk.h"
 #include "kernel/mm256_16x3xk.h"
+#include "kernel/mm256_16x2xk.h"
+#include "kernel/mm256_16x1xk.h"
 
 const char *dgemm_desc = "Apricity's optimized dgemm.";
 
@@ -37,29 +38,40 @@ static inline void do_block_kernel(int lda, int ldb, int ldc, int M, int N, int 
   const double *restrict block_B;
   double *restrict block_C;
 
+  // Calculate block remainder for N
+  int n = N % Nc;
+
+  // Main blocking for M (16 x N)
   int i;
   for (i = 0; i <= M - Mc; i += Mc)
   {
-    int block_M = Mc;
-    // block_A = &A(i, 0);
-    pack(Ai, Mc, &A(i, 0), lda, block_M, K);
-    block_A = &Ai(0);
+    pack(Ai, Mc, &A(i, 0), lda, Mc, K);
+    // Main blocking for N (16 x 3)
     int j;
     for (j = 0; j <= N - Nc; j += Nc)
     {
       block_B = &B(0, j);
       block_C = &C(i, j);
-      kernel_mm256_16x3xk(Mc, ldb, ldc, K, block_A, block_B, block_C);
-    }
-    // end for(j), (N-j) columns remain in C
-    // block_M = Mc, block_N = (N-j), block_K = K
-    if (j != N)
-      kernel_naive(Mc, ldb, ldc, Mc, N - j, K, &Ai(0), &B(0, j), &C(i, j));
-  }
-  // end for(i), (M-i) rows remain in C
-  // block_M = (M-i), block_N = N, block_K = K
-  if (i != M)
-    kernel_naive(lda, ldb, ldc, M - i, N, K, &A(i, 0), B, &C(i, 0));
+      kernel_mm256_16x3xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+    } // End main blocking for N (16 x 3)
+    // Deal with remainder 16 x n, n < 3
+    if (n != 0)
+    {
+      block_B = &B(0, j);
+      block_C = &C(i, j);
+      if (n == 2)
+        kernel_mm256_16x2xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+      else
+        kernel_mm256_16x1xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+    } // End deal with remadinder 16 x n
+  }   // End main blocking for M
+
+  // Calculate block remainder for M
+  int m = M % Mc;
+
+  // Deal with remainder m x N, m < 16
+  if (m != 0)
+    kernel_naive(lda, ldb, ldc, m, N, K, &A(i, 0), B, &C(i, 0));
 }
 
 // Level 2 blocking, k-i-j
