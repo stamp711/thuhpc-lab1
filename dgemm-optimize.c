@@ -22,7 +22,7 @@
 #include "kernel/mm256_4x1xk.h"
 
 #define DRIVER_USE_12
-#define DRIVER_USE_8
+// #define DRIVER_USE_8
 #define DRIVER_USE_4
 
 const char *dgemm_desc = "Apricity's optimized dgemm.";
@@ -127,9 +127,9 @@ inline void kernel_driver(int lda, int ldb, int ldc, int M, int N, int K, const 
       block_C = &C(i, j);
       if (n == 4)
         kernel_mm256_8x4xk(8, ldb, ldc, K, Ai, block_B, block_C);
-      if (n == 3)
+      else if (n == 3)
         kernel_mm256_8x3xk(8, ldb, ldc, K, Ai, block_B, block_C);
-      if (n == 2)
+      else if (n == 2)
         kernel_mm256_8x2xk(8, ldb, ldc, K, Ai, block_B, block_C);
       else
         kernel_mm256_8x1xk(8, ldb, ldc, K, Ai, block_B, block_C);
@@ -157,15 +157,15 @@ inline void kernel_driver(int lda, int ldb, int ldc, int M, int N, int K, const 
       block_C = &C(i, j);
       if (n == 7)
         kernel_mm256_4x7xk(4, ldb, ldc, K, Ai, block_B, block_C);
-      if (n == 6)
+      else if (n == 6)
         kernel_mm256_4x6xk(4, ldb, ldc, K, Ai, block_B, block_C);
-      if (n == 5)
+      else if (n == 5)
         kernel_mm256_4x5xk(4, ldb, ldc, K, Ai, block_B, block_C);
-      if (n == 4)
+      else if (n == 4)
         kernel_mm256_4x4xk(4, ldb, ldc, K, Ai, block_B, block_C);
-      if (n == 3)
+      else if (n == 3)
         kernel_mm256_4x3xk(4, ldb, ldc, K, Ai, block_B, block_C);
-      if (n == 2)
+      else if (n == 2)
         kernel_mm256_4x2xk(4, ldb, ldc, K, Ai, block_B, block_C);
       else
         kernel_mm256_4x1xk(4, ldb, ldc, K, Ai, block_B, block_C);
