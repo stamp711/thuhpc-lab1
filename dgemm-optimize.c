@@ -4,6 +4,10 @@
 #include "kernel/mm256_16x3xk.h"
 #include "kernel/mm256_16x2xk.h"
 #include "kernel/mm256_16x1xk.h"
+#include "kernel/mm256_12x4xk.h"
+#include "kernel/mm256_12x3xk.h"
+#include "kernel/mm256_12x2xk.h"
+#include "kernel/mm256_12x1xk.h"
 
 const char *dgemm_desc = "Apricity's optimized dgemm.";
 
@@ -32,7 +36,7 @@ const char *dgemm_desc = "Apricity's optimized dgemm.";
 #define Kc K
 double Ai[Mc * K2] __attribute((aligned(32)));
 #define Ai(k) (Ai[(k)*Mc])
-static inline void do_block_kernel(int lda, int ldb, int ldc, int M, int N, int K, const double *restrict A, const double *restrict B, double *restrict C)
+static inline void kernel_driver(int lda, int ldb, int ldc, int M, int N, int K, const double *restrict A, const double *restrict B, double *restrict C)
 {
   const double *restrict block_A;
   const double *restrict block_B;
@@ -63,29 +67,60 @@ static inline void do_block_kernel(int lda, int ldb, int ldc, int M, int N, int 
         kernel_mm256_16x2xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
       else
         kernel_mm256_16x1xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
-    } // End deal with remadinder 16 x n
+    } // End dealing with remadinder 16 x n
   }   // End main blocking for M
 
   // Calculate block remainder for M
   int m = M % Mc;
 
   // Deal with remainder m x N, m < 16
+  if (m >= 12)
+  {
+    pack(Ai, Mc, &A(i, 0), lda, 12, K);
+    int j;
+    for (j = 0; j <= N - 4; j += 4)
+    {
+      block_B = &B(0, j);
+      block_C = &C(i, j);
+      kernel_mm256_12x4xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+    }
+    n = N - j;
+    if (n != 0)
+    {
+      block_B = &B(0, j);
+      block_C = &C(i, j);
+      if (n == 3)
+        kernel_mm256_12x3xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+      else if (n == 2)
+        kernel_mm256_12x2xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+      else
+        kernel_mm256_12x1xk(Mc, ldb, ldc, K, Ai, block_B, block_C);
+    }
+    m -= 12;
+    i += 12;
+  }
+
   if (m != 0)
-    kernel_naive(lda, ldb, ldc, m, N, K, &A(i, 0), B, &C(i, 0));
+  {
+    pack(Ai, Mc, &A(i, 0), lda, m, K);
+    for (int j = 0; j < N; j += 4)
+    {
+      int block_N = min(4, N - j);
+      block_B = &B(0, j);
+      block_C = &C(i, j);
+      kernel_naive(Mc, ldb, ldc, m, block_N, K, Ai, block_B, block_C);
+    }
+  } // End dealing with remainder m x N, m < 16
 }
 
 // Level 2 blocking, k-i-j
-// double Bk[K1 * N1] __attribute((aligned(32)));
-// #define Bk(j) (Bk[(j)*K2])
 static inline void do_block_L2(int lda, int ldb, int ldc, int M, int N, int K, const double *restrict A, const double *restrict B, double *restrict C)
 {
   const double *block_A, *block_B;
   double *block_C;
-
   for (int k = 0; k < K; k += K2)
   {
     int block_K = min(K2, K - k);
-    // pack(Bk, K2, &B(k, 0), ldb, block_K, N);
     for (int i = 0; i < M; i += M2)
     {
       int block_M = min(M2, M - i);
@@ -95,7 +130,7 @@ static inline void do_block_L2(int lda, int ldb, int ldc, int M, int N, int K, c
         block_A = &A(i, k);
         block_B = &B(k, j);
         block_C = &C(i, j);
-        do_block_kernel(lda, ldb, ldc, block_M, block_N, block_K, block_A, block_B, block_C);
+        kernel_driver(lda, ldb, ldc, block_M, block_N, block_K, block_A, block_B, block_C);
       }
     }
   }

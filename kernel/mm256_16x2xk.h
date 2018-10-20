@@ -5,8 +5,6 @@
 #define B(k, j) (B[(k) + (j)*ldb])
 #define C(i, j) (C[(i) + (j)*ldc])
 
-#define regsA 4
-#define regsB 3
 #define double4 __m256d
 
 inline void kernel_mm256_16x2xk(int lda, int ldb, int ldc, int K, const double *restrict A, const double *restrict B, double *restrict C)
