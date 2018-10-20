@@ -16,14 +16,14 @@ const char *dgemm_desc = "Apricity's optimized dgemm.";
 // #define K2 32
 
 // Level 1 blocking
-#define M1 64
-#define N1 72
-#define K1 256
+#define M1 512
+#define N1 768
+#define K1 512
 
 // Level 2 blocking
-#define M2 32
-#define N2 72
-#define K2 32
+#define M2 64
+#define N2 768
+#define K2 256
 
 // Register blocking, i-j, K unchanged
 #define Mc 16
