@@ -7,24 +7,26 @@
 
 #define double4 __m256d
 
-inline void kernel_mm256_8x4xk(int lda, int ldb, int ldc, int K, const double *restrict A, const double *restrict B, double *restrict C)
+inline __attribute__((always_inline)) void kernel_mm256_8x5xk(int lda, int ldb, int ldc, int K, const double *restrict A, const double *restrict B, double *restrict C)
 {
-  register double4 c_ymm_00, c_ymm_01, c_ymm_02, c_ymm_03;
-  register double4 c_ymm_40, c_ymm_41, c_ymm_42, c_ymm_43;
+  register double4 c_ymm_00, c_ymm_01, c_ymm_02, c_ymm_03, c_ymm_04;
+  register double4 c_ymm_40, c_ymm_41, c_ymm_42, c_ymm_43, c_ymm_44;
 
   c_ymm_00 = _mm256_setzero_pd();
   c_ymm_01 = _mm256_setzero_pd();
   c_ymm_02 = _mm256_setzero_pd();
   c_ymm_03 = _mm256_setzero_pd();
+  c_ymm_04 = _mm256_setzero_pd();
   c_ymm_40 = _mm256_setzero_pd();
   c_ymm_41 = _mm256_setzero_pd();
   c_ymm_42 = _mm256_setzero_pd();
   c_ymm_43 = _mm256_setzero_pd();
+  c_ymm_44 = _mm256_setzero_pd();
 
   for (int k = 0; k < K; k++)
   {
     double4 a_ymm_0k, a_ymm_4k;
-    double4 b_val_k0, b_val_k1, b_val_k2, b_val_k3;
+    double4 b_val_k0, b_val_k1, b_val_k2, b_val_k3, b_val_k4;
 
     a_ymm_0k = _mm256_load_pd(&A(4 * 0, k));
     b_val_k0 = _mm256_broadcast_sd(&B(k, 0));
@@ -39,11 +41,15 @@ inline void kernel_mm256_8x4xk(int lda, int ldb, int ldc, int K, const double *r
     b_val_k3 = _mm256_broadcast_sd(&B(k, 3));
     c_ymm_03 = _mm256_fmadd_pd(a_ymm_0k, b_val_k3, c_ymm_03);
 
+    b_val_k4 = _mm256_broadcast_sd(&B(k, 4));
+    c_ymm_04 = _mm256_fmadd_pd(a_ymm_0k, b_val_k4, c_ymm_04);
+
     a_ymm_4k = _mm256_load_pd(&A(4 * 1, k));
     c_ymm_40 = _mm256_fmadd_pd(a_ymm_4k, b_val_k0, c_ymm_40);
     c_ymm_41 = _mm256_fmadd_pd(a_ymm_4k, b_val_k1, c_ymm_41);
     c_ymm_42 = _mm256_fmadd_pd(a_ymm_4k, b_val_k2, c_ymm_42);
     c_ymm_43 = _mm256_fmadd_pd(a_ymm_4k, b_val_k3, c_ymm_43);
+    c_ymm_44 = _mm256_fmadd_pd(a_ymm_4k, b_val_k4, c_ymm_44);
   }
 
 #define _mm256_load_add_store_pd_reg(ymm, addr, tmp) \
@@ -63,4 +69,7 @@ inline void kernel_mm256_8x4xk(int lda, int ldb, int ldc, int K, const double *r
 
   _mm256_load_add_store_pd_reg(c_ymm_03, &C(0, 3), t_ymm_03);
   _mm256_load_add_store_pd_reg(c_ymm_43, &C(4, 3), t_ymm_43);
+
+  _mm256_load_add_store_pd_reg(c_ymm_04, &C(0, 4), t_ymm_04);
+  _mm256_load_add_store_pd_reg(c_ymm_44, &C(4, 4), t_ymm_44);
 }
