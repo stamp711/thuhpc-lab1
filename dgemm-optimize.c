@@ -59,6 +59,7 @@ inline void kernel_driver(int lda, int ldb, int ldc, int M, int N, int K, const 
     pack(Ai, Mc, &A(i, 0), lda, Mc, K);
     // Main blocking for N (16 x 3)
     int j;
+#pragma prefetch B, C
     for (j = 0; j <= N - Nc; j += Nc)
     {
       block_B = &B(0, j);
@@ -210,6 +211,7 @@ inline void do_block_L2(int lda, int ldb, int ldc, int M, int N, int K, const do
 {
   const double *block_A, *block_B;
   double *block_C;
+#pragma prefetch B, C
   for (int k = 0; k < K; k += K2)
   {
     int block_K = min(K2, K - k);
@@ -233,6 +235,7 @@ inline void do_block_L1(int lda, int ldb, int ldc, int M, int N, int K, const do
 {
   const double *block_A, *block_B;
   double *block_C;
+#pragma prefetch B, C
   for (int k = 0; k < K; k += K1)
   {
     int block_K = min(K1, K - k);
@@ -253,5 +256,8 @@ inline void do_block_L1(int lda, int ldb, int ldc, int M, int N, int K, const do
 
 void square_dgemm(int lda, const double *restrict A, const double *restrict B, double *restrict C)
 {
-  do_block_L1(lda, lda, lda, lda, lda, lda, A, B, C);
+  if (lda <= K2)
+    kernel_driver(lda, lda, lda, lda, lda, lda, A, B, C);
+  else
+    do_block_L1(lda, lda, lda, lda, lda, lda, A, B, C);
 }
