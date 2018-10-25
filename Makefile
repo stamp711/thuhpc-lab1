@@ -55,6 +55,7 @@ clean:
 	@rm -rf $(BUILD_DIR)
 	@rm -rf job/output*
 	@rm -rf *.annot*
+	@rm -rf amplxe_*
 
 .PHONY : run-ref
 run-ref: $(reference)

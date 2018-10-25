@@ -5,3 +5,4 @@
 #SBATCH -o job/output
 
 srun -N 1 -n 1 ./.build/bin/benchmark-optimize
+#srun amplxe-cl –c hpc-performance –r amplxe_result -- ./.build/bin/benchmark-optimize
